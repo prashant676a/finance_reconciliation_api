@@ -1,5 +1,6 @@
 export default {
   testEnvironment: "node",
-  testMatch: ["**/tests/**/*.test.mjs"],
+  testMatch: ["**/tests/**/*.test.ts"],
+  extensionsToTreatAsEsm: [".ts"],
   transform: {},
 };

@@ -69,7 +69,7 @@ The reconciliation query uses a `LEFT JOIN` so orders without settlements are in
 npm test
 ```
 
-This command builds TypeScript, creates a temporary PostgreSQL schema, applies the migration there, runs Jest unit tests and Supertest integration tests, and removes the schema. Existing application tables are untouched. By default the test runner connects to the local development database; set `TEST_DATABASE_URL` to use another database. That role must be able to create schemas.
+This command builds TypeScript, typechecks the `.test.ts` files, creates a temporary PostgreSQL schema, applies the migration there, runs Jest unit tests and Supertest integration tests, and removes the schema. Existing application tables are untouched. By default the test runner connects to the local development database; set `TEST_DATABASE_URL` to use another database. That role must be able to create schemas.
 
 The [testing guide](TESTING_GUIDE.md) explains each part of the tests and the reasons behind their design. GitHub Actions runs the same `npm test` command on every push and pull request, using a PostgreSQL 16 service. The workflow is in [`.github/workflows/ci.yml`](.github/workflows/ci.yml).
 

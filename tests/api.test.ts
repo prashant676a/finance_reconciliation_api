@@ -1,3 +1,4 @@
+import { afterAll, beforeEach, expect, test } from "@jest/globals";
 import request from "supertest";
 import { app } from "../dist/app.js";
 import { pool } from "../dist/db.js";
@@ -71,14 +72,14 @@ test("reconciliation totals partial settlements and is safe to rerun", async () 
   expect(firstRun.body.data).toEqual({ totalProcessed: 3, matchedCount: 1, discrepancyCount: 2 });
 
   const orders = (await request(app).get("/api/orders")).body.data;
-  expect(Object.fromEntries(orders.map(({ order_ref, status }) => [order_ref, status])))
+  expect(Object.fromEntries(orders.map(({ order_ref, status }: { order_ref: string; status: string }) => [order_ref, status])))
     .toEqual({ MATCH: "MATCHED", MISSING: "DISCREPANCY", SHORT: "DISCREPANCY" });
 
   const exceptions = (await request(app).get("/api/exceptions?status=OPEN")).body.data;
   expect(exceptions).toHaveLength(2);
-  expect(exceptions.find((row) => row.order_ref === "MISSING"))
+  expect(exceptions.find((row: { order_ref: string }) => row.order_ref === "MISSING"))
     .toMatchObject({ exception_type: "MISSING_SETTLEMENT", settled_amount_paisa: null, discrepancy_paisa: 80 });
-  expect(exceptions.find((row) => row.order_ref === "SHORT"))
+  expect(exceptions.find((row: { order_ref: string }) => row.order_ref === "SHORT"))
     .toMatchObject({ exception_type: "AMOUNT_MISMATCH", settled_amount_paisa: 70, discrepancy_paisa: 30 });
 
   const report = await request(app).get("/api/reports/summary");
