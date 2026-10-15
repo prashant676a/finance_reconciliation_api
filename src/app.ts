@@ -1,5 +1,6 @@
 import express from "express";
 import type { Request, Response, NextFunction } from "express";
+import { DatabaseError } from "pg";
 import { ZodError } from "zod";
 import {
   createOrderSchema,
@@ -88,12 +89,7 @@ app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
     return;
   }
 
-  if (
-    typeof err === "object" &&
-    err !== null &&
-    "code" in err &&
-    err.code === "23505"
-  ) {
+  if (err instanceof DatabaseError && err.code === "23505") {
     res.status(409).json({
       error: "Duplicate record: reference already exists",
     });
