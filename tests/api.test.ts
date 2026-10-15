@@ -1,18 +1,19 @@
 import { afterAll, beforeEach, expect, test } from "@jest/globals";
 import request from "supertest";
-import { app } from "../dist/app.js";
-import { pool } from "../dist/db.js";
+import { app } from "../src/app.js";
+import { pool } from "../src/db.js";
+import { resetTestDatabase } from "./database.js";
 
 // Each test starts with empty tables inside the runner's temporary schema.
 beforeEach(async () => {
-  await pool.query("TRUNCATE reconciliation_exceptions, settlements, orders RESTART IDENTITY");
+  await resetTestDatabase();
 });
 
 afterAll(async () => {
   await pool.end();
 });
 
-test("health and empty reports work without a listening server", async () => {
+test("health and empty reports work without starting server.ts", async () => {
   const health = await request(app).get("/health");
   expect(health.status).toBe(200);
   expect(health.body).toEqual({ status: "ok" });
@@ -30,13 +31,16 @@ test("health and empty reports work without a listening server", async () => {
   });
 });
 
-test("orders and settlements validate input and duplicate references return 409", async () => {
+test("invalid order data returns 400 without inserting an order", async () => {
   const badOrder = await request(app).post("/api/orders").send({
     orderRef: "A", customerName: "Ada", expectedAmountPaisa: -5,
   });
   expect(badOrder.status).toBe(400);
   expect(badOrder.body.error).toBe("Validation failed");
+  expect((await request(app).get("/api/orders")).body.data).toHaveLength(0);
+});
 
+test("duplicate order references return 409 and keep only one order", async () => {
   const order = { orderRef: "A", customerName: "Ada", expectedAmountPaisa: 100 };
   const created = await request(app).post("/api/orders").send(order);
   expect(created.status).toBe(201);
@@ -45,12 +49,77 @@ test("orders and settlements validate input and duplicate references return 409"
 
   const orders = await request(app).get("/api/orders");
   expect(orders.body.data).toHaveLength(1);
+});
 
+test("settlements reject negative money and duplicate references", async () => {
   const settlement = { settlementRef: "S1", orderRef: "A", settledAmountPaisa: 100 };
   expect((await request(app).post("/api/settlements")
     .send({ ...settlement, settledAmountPaisa: -1 })).status).toBe(400);
   expect((await request(app).post("/api/settlements").send(settlement)).status).toBe(201);
   expect((await request(app).post("/api/settlements").send(settlement)).status).toBe(409);
+});
+
+test("malformed JSON returns 400 instead of 500", async () => {
+  const response = await request(app).post("/api/orders")
+    .set("Content-Type", "application/json").send("{");
+  expect(response.status).toBe(400);
+  expect(response.body).toEqual({ error: "Invalid JSON body" });
+});
+
+test.each(["abc", "1.5", "0", "-1", "2147483648", "Infinity"])(
+  "invalid exception ID %s returns 400",
+  async (id) => {
+    const response = await request(app).patch(`/api/exceptions/${id}/resolve`).send({
+      resolutionNote: "Checked ledger", resolvedBy: "Ada",
+    });
+    expect(response.status).toBe(400);
+    expect(response.body.error).toBe("Invalid exception ID");
+  }
+);
+
+test("unknown or repeated status filters return 400", async () => {
+  expect((await request(app).get("/api/exceptions?status=UNKNOWN")).status).toBe(400);
+  expect((await request(app).get("/api/exceptions?status=OPEN&status=RESOLVED")).status).toBe(400);
+});
+
+test("an amount larger than the database limit returns 400", async () => {
+  const response = await request(app).post("/api/orders").send({
+    orderRef: "OVERFLOW", customerName: "Ada", expectedAmountPaisa: 2_147_483_648,
+  });
+  expect(response.status).toBe(400);
+  expect((await request(app).get("/api/orders")).body.data).toHaveLength(0);
+});
+
+test.each([0, 150])("a settlement of %i against 100 paisa is an amount mismatch", async (amount) => {
+  expect((await request(app).post("/api/orders").send({
+    orderRef: "AMOUNT", customerName: "Ada", expectedAmountPaisa: 100,
+  })).status).toBe(201);
+  expect((await request(app).post("/api/settlements").send({
+    settlementRef: "AMOUNT-S", orderRef: "AMOUNT", settledAmountPaisa: amount,
+  })).status).toBe(201);
+  expect((await request(app).post("/api/reconciliations/run")).status).toBe(200);
+  const exceptions = (await request(app).get("/api/exceptions")).body.data;
+  expect(exceptions).toHaveLength(1);
+  expect(exceptions[0]).toMatchObject({
+    exception_type: "AMOUNT_MISMATCH", settled_amount_paisa: amount, discrepancy_paisa: 100 - amount,
+  });
+});
+
+test("an unmatched settlement stays visible until its order arrives", async () => {
+  expect((await request(app).post("/api/settlements").send({
+    settlementRef: "EARLY-S", orderRef: "LATE-ORDER", settledAmountPaisa: 100,
+  })).status).toBe(201);
+  const unmatched = await request(app).get("/api/settlements/unmatched");
+  expect(unmatched.status).toBe(200);
+  expect(unmatched.body.data).toHaveLength(1);
+  expect(unmatched.body.data[0].settlement_ref).toBe("EARLY-S");
+  expect((await request(app).post("/api/reconciliations/run")).body.data.totalProcessed).toBe(0);
+
+  expect((await request(app).post("/api/orders").send({
+    orderRef: "LATE-ORDER", customerName: "Ada", expectedAmountPaisa: 100,
+  })).status).toBe(201);
+  expect((await request(app).get("/api/settlements/unmatched")).body.data).toHaveLength(0);
+  expect((await request(app).post("/api/reconciliations/run")).body.data.matchedCount).toBe(1);
 });
 
 test("reconciliation totals partial settlements and is safe to rerun", async () => {

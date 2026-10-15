@@ -12,7 +12,7 @@ testUrl.searchParams.set("options", `-csearch_path=${schema}`);
 
 function run(args, databaseUrl) {
   const result = spawnSync(process.execPath, args, {
-    env: { ...process.env, DATABASE_URL: databaseUrl },
+    env: { ...process.env, DATABASE_URL: databaseUrl, RECON_TEST_SCHEMA: schema },
     stdio: "inherit",
   });
   if (result.error) throw result.error;
@@ -23,7 +23,7 @@ try {
   // The name comes from randomUUID and contains only letters, digits and underscores.
   await adminPool.query(`CREATE SCHEMA "${schema}"`);
   console.log(`Testing in isolated PostgreSQL schema: ${schema}`);
-  run(["dist/migrate.js"], testUrl.toString());
+  run([".test-dist/src/migrate.js"], testUrl.toString());
   run([
     "--experimental-vm-modules",
     "node_modules/jest/bin/jest.js",

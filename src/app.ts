@@ -6,6 +6,8 @@ import {
   createOrderSchema,
   createSettlementSchema,
   resolveExceptionSchema,
+  exceptionStatusSchema,
+  MAX_DB_INTEGER,
 } from "./validators.js";
 import { FinanceRepository } from "./repository.js";
 
@@ -37,6 +39,12 @@ app.post("/api/settlements", async (req, res) => {
   res.status(201).json({ data: settlement });
 });
 
+// Incoming settlements can arrive before their order. Keep them visible for review.
+app.get("/api/settlements/unmatched", async (_req, res) => {
+  const settlements = await FinanceRepository.getUnmatchedSettlements();
+  res.status(200).json({ data: settlements });
+});
+
 // 4. POST /api/reconciliations/run
 app.post("/api/reconciliations/run", async (_req, res) => {
   const summary = await FinanceRepository.runReconciliation();
@@ -45,8 +53,7 @@ app.post("/api/reconciliations/run", async (_req, res) => {
 
 // 5. GET /api/exceptions (Supports optional ?status=OPEN query param)
 app.get("/api/exceptions", async (req, res) => {
-  const statusFilter =
-    typeof req.query.status === "string" ? req.query.status : undefined;
+  const statusFilter = exceptionStatusSchema.parse(req.query.status);
   const exceptions = await FinanceRepository.getExceptions(statusFilter);
   res.status(200).json({ data: exceptions });
 });
@@ -54,7 +61,7 @@ app.get("/api/exceptions", async (req, res) => {
 // 6. PATCH /api/exceptions/:id/resolve
 app.patch("/api/exceptions/:id/resolve", async (req, res) => {
   const exceptionId = Number(req.params.id);
-  if (Number.isNaN(exceptionId)) {
+  if (!Number.isInteger(exceptionId) || exceptionId <= 0 || exceptionId > MAX_DB_INTEGER) {
     res.status(400).json({ error: "Invalid exception ID" });
     return;
   }
@@ -81,6 +88,12 @@ app.get("/api/reports/summary", async (_req, res) => {
 
 // Centralized Error Handler
 app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
+  // Only a JSON parser error is a bad request; an unrelated SyntaxError is a server bug.
+  if (err instanceof SyntaxError && "type" in err && err.type === "entity.parse.failed") {
+    res.status(400).json({ error: "Invalid JSON body" });
+    return;
+  }
+
   if (err instanceof ZodError) {
     res.status(400).json({
       error: "Validation failed",

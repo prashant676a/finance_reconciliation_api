@@ -32,6 +32,7 @@ All request bodies below are JSON. Successful routes return a `data` property, e
 | `POST /api/orders` | Create an order with `orderRef`, `customerName`, and `expectedAmountPaisa`. |
 | `GET /api/orders` | List orders, newest first. |
 | `POST /api/settlements` | Create a settlement with `settlementRef`, `orderRef`, and `settledAmountPaisa`. |
+| `GET /api/settlements/unmatched` | List settlement receipts whose order reference does not exist yet. |
 | `POST /api/reconciliations/run` | Compare every order with the sum of its settlements. |
 | `GET /api/exceptions` | List exceptions; `?status=OPEN` or `?status=RESOLVED` filters them. |
 | `PATCH /api/exceptions/:id/resolve` | Resolve an exception with `resolutionNote` and `resolvedBy`. |
@@ -57,11 +58,21 @@ In this example the order becomes `DISCREPANCY` and the exception records a `500
 
 ## How reconciliation works
 
+```mermaid
+flowchart LR
+  Client[Postman or curl] --> Route[Express route]
+  Route --> Validation[Zod validation]
+  Validation --> Repository[Repository with parameterized SQL]
+  Repository --> Database[(PostgreSQL)]
+```
+
 `src/app.ts` handles HTTP and Zod validation. `src/repository.ts` owns parameterized SQL. `src/db.ts` holds the connection pool; `src/server.ts` starts the listener. The `.js` extensions in TypeScript imports are intentional: NodeNext ESM needs the path that will exist after compilation.
 
 The reconciliation query uses a `LEFT JOIN` so orders without settlements are included. It groups settlements by order reference and sums partial payments, then processes each order once. The repository borrows one `pg` client, starts a transaction with `BEGIN`, updates order and exception rows, and calls `COMMIT`. Any error causes `ROLLBACK`, so an order status cannot change without its corresponding exception write.
 
 `ON CONFLICT (order_ref) DO UPDATE` keeps one current exception per order when a run is repeated. An unchanged manually resolved discrepancy stays resolved. New settlement evidence that changes the discrepancy reopens it; a matching settlement automatically resolves an open exception. The exception row stores the current resolution fields, rather than a separate history of every earlier decision.
+
+Settlements may arrive before their orders. These receipts remain stored and are listed by `/api/settlements/unmatched`. Once an order with the supplied reference arrives, the receipt leaves that list; the next reconciliation run determines whether the total amount matches. This endpoint checks for a missing order, not a mismatched amount.
 
 ## Tests and CI
 
@@ -69,8 +80,14 @@ The reconciliation query uses a `LEFT JOIN` so orders without settlements are in
 npm test
 ```
 
-This command builds TypeScript, typechecks the `.test.ts` files, creates a temporary PostgreSQL schema, applies the migration there, runs Jest unit tests and Supertest integration tests, and removes the schema. Existing application tables are untouched. By default the test runner connects to the local development database; set `TEST_DATABASE_URL` to use another database. That role must be able to create schemas.
+This command compiles the application and `.test.ts` files together into `.test-dist/`, creates a temporary PostgreSQL schema, applies the migration there, runs Jest on the compiled JavaScript, and removes the schema. Compilation checks the types. The integration tests verify their connected schema before clearing test tables. By default the test runner connects to the local development database; set `TEST_DATABASE_URL` to use another database. That role must be able to create schemas.
+
+Use `npm run test:unit` to run the validator tests without PostgreSQL. `npm run build` still builds the application alone into `dist/` for `npm start`.
 
 The [testing guide](TESTING_GUIDE.md) explains each part of the tests and the reasons behind their design. GitHub Actions runs the same `npm test` command on every push and pull request, using a PostgreSQL 16 service. The workflow is in [`.github/workflows/ci.yml`](.github/workflows/ci.yml).
 
 The current schema uses PostgreSQL `INTEGER` for paisa amounts. A single amount is therefore limited to 2,147,483,647 paisa; very large totals and concurrent reconciliation jobs need additional design before production use.
+
+## API demo
+
+The [demo walkthrough](demo/README.md) includes an importable Postman collection and a curl script. Start the app, then use the collection or run `bash demo/walkthrough.sh`. Each run creates fresh references.

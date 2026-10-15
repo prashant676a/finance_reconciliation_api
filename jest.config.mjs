@@ -1,6 +1,5 @@
 export default {
   testEnvironment: "node",
-  testMatch: ["**/tests/**/*.test.ts"],
-  extensionsToTreatAsEsm: [".ts"],
+  testMatch: ["<rootDir>/.test-dist/tests/**/*.test.js"],
   transform: {},
 };

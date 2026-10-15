@@ -4,7 +4,9 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "npm run build && npm run typecheck:tests && node scripts/run-api-tests.mjs",
+    "test": "npm run build:tests && node scripts/run-api-tests.mjs",
+    "test:unit": "npm run build:tests && node --experimental-vm-modules node_modules/jest/bin/jest.js --runInBand .test-dist/tests/validators.test.js",
+    "build:tests": "tsc -p tsconfig.tests.json",
     "dev": "tsx watch src/server.ts",
     "build": "tsc",
     "start": "node dist/server.js",

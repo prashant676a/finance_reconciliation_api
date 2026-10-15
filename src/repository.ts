@@ -33,6 +33,17 @@ export const FinanceRepository = {
     return result.rows[0];
   },
 
+  async getUnmatchedSettlements() {
+    const result = await pool.query(`
+      SELECT s.* FROM settlements s
+      WHERE NOT EXISTS (
+        SELECT 1 FROM orders o WHERE o.order_ref = s.order_ref
+      )
+      ORDER BY s.settled_at DESC, s.id DESC
+    `);
+    return result.rows;
+  },
+
   // CORE FEATURE: Reconcile all orders against settlements inside a DB Transaction
   async runReconciliation() {
     const client = await pool.connect(); // Borrow 1 dedicated connection for the transaction

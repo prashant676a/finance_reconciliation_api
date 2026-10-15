@@ -1,8 +1,12 @@
 node_modules/
 dist/
+.test-dist/
 coverage/
 .env
 .env.*
 !.env.example
 *.log
 .DS_Store
+
+# Local preparation notes
+/INTERVIEW_PREP.md
