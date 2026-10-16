@@ -80,7 +80,9 @@ Settlements may arrive before their orders. These receipts remain stored and are
 npm test
 ```
 
-This command compiles the application and `.test.ts` files together into `.test-dist/`, creates a temporary PostgreSQL schema, applies the migration there, runs Jest on the compiled JavaScript, and removes the schema. Compilation checks the types. The integration tests verify their connected schema before clearing test tables. By default the test runner connects to the local development database; set `TEST_DATABASE_URL` to use another database. That role must be able to create schemas.
+This command compiles the application and `.test.ts` files into `.test-dist/`, checks that it is connected to `finance_recon_test.public`, recreates the three tables there, and runs Jest on the compiled JavaScript. It removes the test tables afterward. Each integration test resets those tables and verifies the database name before doing so. Create a local `finance_recon_test` database owned by the `recon` role before running `npm test`; set `TEST_DATABASE_URL` if its connection details differ from the default `postgresql://recon:recon_dev@localhost:5432/finance_recon_test`. The runner refuses to touch the development database.
+
+For the default local setup, run `createdb -O recon finance_recon_test` once as a PostgreSQL role with database-creation permission. The database remains in place between test runs; only its application tables are recreated.
 
 Use `npm run test:unit` to run the validator tests without PostgreSQL. `npm run build` still builds the application alone into `dist/` for `npm start`.
 

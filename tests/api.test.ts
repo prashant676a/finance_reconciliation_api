@@ -4,7 +4,7 @@ import { app } from "../src/app.js";
 import { pool } from "../src/db.js";
 import { resetTestDatabase } from "./database.js";
 
-// Each test starts with empty tables inside the runner's temporary schema.
+// Each test starts with empty tables in the dedicated test database.
 beforeEach(async () => {
   await resetTestDatabase();
 });
