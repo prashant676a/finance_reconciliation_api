@@ -1,4 +1,4 @@
-import { expect, test } from "@jest/globals";
+import { expect, test } from "vitest";
 import { createOrderSchema, createSettlementSchema, resolveExceptionSchema, MAX_DB_INTEGER } from "../src/validators.js";
 
 test("order input trims text and accepts an integer number of paisa", () => {

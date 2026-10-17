@@ -93,7 +93,7 @@ Settlements may arrive before their orders. These receipts remain stored and are
 npm test
 ```
 
-This command compiles the application and `.test.ts` files into `.test-dist/` and runs Jest on the compiled JavaScript. The integration tests drop and recreate the three tables in the test database once per run, and reset them before each test. Tests use only `TEST_DATABASE_URL`, which has no default; it comes from `.env` (see `.env.example`). A `DATABASE_URL` from your shell is ignored by the tests. The tests trust `TEST_DATABASE_URL` completely and drop and truncate tables in whatever database it names, so it must be a dedicated test database, never one with data you want to keep. If the variable is unset or the database cannot be reached, the run stops with a message instead of falling back to another database.
+This command runs the `.test.ts` files directly with Vitest (no build step). The integration tests drop and recreate the three tables in the test database once per run, and reset them before each test. Tests use only `TEST_DATABASE_URL`, which has no default; `vitest.config.ts` reads it from `.env` (see `.env.example`) or the shell. A `DATABASE_URL` from your shell is ignored by the tests. The tests trust `TEST_DATABASE_URL` completely and drop and truncate tables in whatever database it names, so it must be a dedicated test database, never one with data you want to keep. If the variable is unset or the database cannot be reached, the run stops with a message instead of falling back to another database.
 
 Create the test database as described under Database setup. The database remains in place between test runs; only its application tables are recreated at the start of each run.
 

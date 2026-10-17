@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, beforeEach, expect, jest, test } from "@jest/globals";
+import { afterAll, beforeAll, beforeEach, expect, test, vi } from "vitest";
 import request from "supertest";
 import { app } from "../src/app.js";
 import { pool } from "../src/db.js";
@@ -261,7 +261,7 @@ test("a database failure rolls back the order status change", async () => {
   // Force exception insertion to fail after reconciliation has updated the order.
   await pool.query("ALTER TABLE reconciliation_exceptions ADD CONSTRAINT reject_missing CHECK (exception_type <> 'MISSING_SETTLEMENT')");
   // The error handler logs the forced failure; keep the test output clean.
-  const consoleError = jest.spyOn(console, "error").mockImplementation(() => {});
+  const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
   try {
     const response = await request(app).post("/api/reconciliations/run");
     expect(response.status).toBe(500);
