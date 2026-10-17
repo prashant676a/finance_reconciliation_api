@@ -1,8 +1,7 @@
-import { execFileSync } from "node:child_process";
-import { fileURLToPath } from "node:url";
 import { pool } from "../src/db.js";
+import { createTablesSql } from "../src/schema.js";
 
-// Once per test file: start from a fresh schema by dropping and re-running the migration.
+// Once per test file: start from a fresh schema by dropping and recreating the tables.
 // TEST_DATABASE_URL is trusted as the dedicated test database.
 export async function prepareTestDatabase() {
   try {
@@ -16,9 +15,7 @@ export async function prepareTestDatabase() {
   }
   await pool.query(`DROP TABLE IF EXISTS
     public.reconciliation_exceptions, public.settlements, public.orders CASCADE`);
-  execFileSync(process.execPath, [fileURLToPath(new URL("../src/migrate.js", import.meta.url))], {
-    stdio: ["ignore", "ignore", "inherit"],
-  });
+  await pool.query(createTablesSql);
 }
 
 // Before every test: empty tables.

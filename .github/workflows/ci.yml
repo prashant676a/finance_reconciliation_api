@@ -44,5 +44,5 @@ jobs:
       - name: Typecheck source and tests
         run: npm run typecheck && npm run typecheck:tests
 
-      - name: Build and run unit and integration tests
+      - name: Run unit and integration tests
         run: npm test
