@@ -87,6 +87,10 @@ The reconciliation query uses a `LEFT JOIN` so orders without settlements are in
 
 Settlements may arrive before their orders. These receipts remain stored and are listed by `/api/settlements/unmatched`. Once an order with the supplied reference arrives, the receipt leaves that list; the next reconciliation run determines whether the total amount matches. This endpoint checks for a missing order, not a mismatched amount.
 
+## MCP server (optional, experimental)
+
+`src/mcp.ts` exposes read tools and two write tools (`run_reconciliation`, `resolve_exception`) to AI clients over the Model Context Protocol. Start it with `npm run --silent mcp`; it talks over stdin/stdout, so it is meant to be launched by an MCP client, not run by hand. It uses the database in `DATABASE_URL`. Local only: there is no authentication, so do not expose it. [MCP_GUIDE.md](MCP_GUIDE.md) explains how it was built, how it works locally and in production, and what to change to make it robust.
+
 ## Tests and CI
 
 ```bash

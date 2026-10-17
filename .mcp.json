@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "finance-reconciliation": {
+      "command": "npx",
+      "args": ["tsx", "--env-file-if-exists=.env", "src/mcp.ts"]
+    }
+  }
+}
