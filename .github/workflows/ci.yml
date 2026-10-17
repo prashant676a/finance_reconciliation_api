@@ -41,5 +41,8 @@ jobs:
       - name: Install dependencies from lockfile
         run: npm ci
 
+      - name: Typecheck source and tests
+        run: npm run typecheck && npm run typecheck:tests
+
       - name: Build and run unit and integration tests
         run: npm test

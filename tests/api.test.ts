@@ -1,10 +1,14 @@
-import { afterAll, beforeEach, expect, test } from "@jest/globals";
+import { afterAll, beforeAll, beforeEach, expect, jest, test } from "@jest/globals";
 import request from "supertest";
 import { app } from "../src/app.js";
 import { pool } from "../src/db.js";
-import { resetTestDatabase } from "./database.js";
+import { prepareTestDatabase, resetTestDatabase } from "./database.js";
 
-// Each test starts with empty tables in the dedicated test database.
+// Fresh schema once, then empty tables before each test, in the dedicated test database.
+beforeAll(async () => {
+  await prepareTestDatabase();
+});
+
 beforeEach(async () => {
   await resetTestDatabase();
 });
@@ -234,18 +238,37 @@ test("new settlement evidence reopens a previously resolved mismatch", async () 
   });
 });
 
+test("concurrent reconciliation runs give the same result as a single run", async () => {
+  for (const [orderRef, expectedAmountPaisa] of [["MATCH", 100], ["MISSING", 80], ["SHORT", 100]]) {
+    await request(app).post("/api/orders").send({ orderRef, customerName: "Ada", expectedAmountPaisa });
+  }
+  for (const [settlementRef, orderRef, settledAmountPaisa] of [["S1", "MATCH", 100], ["S2", "SHORT", 70]]) {
+    await request(app).post("/api/settlements").send({ settlementRef, orderRef, settledAmountPaisa });
+  }
+
+  const runs = await Promise.all(Array.from({ length: 5 }, () => request(app).post("/api/reconciliations/run")));
+  for (const run of runs) {
+    expect(run.status).toBe(200);
+    expect(run.body.data).toEqual({ totalProcessed: 3, matchedCount: 1, discrepancyCount: 2 });
+  }
+  expect((await request(app).get("/api/exceptions")).body.data).toHaveLength(2);
+});
+
 test("a database failure rolls back the order status change", async () => {
   await request(app).post("/api/orders").send({
     orderRef: "ROLLBACK", customerName: "Ada", expectedAmountPaisa: 100,
   });
   // Force exception insertion to fail after reconciliation has updated the order.
   await pool.query("ALTER TABLE reconciliation_exceptions ADD CONSTRAINT reject_missing CHECK (exception_type <> 'MISSING_SETTLEMENT')");
+  // The error handler logs the forced failure; keep the test output clean.
+  const consoleError = jest.spyOn(console, "error").mockImplementation(() => {});
   try {
     const response = await request(app).post("/api/reconciliations/run");
     expect(response.status).toBe(500);
     expect((await request(app).get("/api/orders")).body.data[0].status).toBe("PENDING");
     expect((await request(app).get("/api/exceptions")).body.data).toHaveLength(0);
   } finally {
+    consoleError.mockRestore();
     await pool.query("ALTER TABLE reconciliation_exceptions DROP CONSTRAINT reject_missing");
   }
 });

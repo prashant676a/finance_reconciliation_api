@@ -4,15 +4,16 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "npm run build:tests && node scripts/run-api-tests.mjs",
-    "test:unit": "npm run build:tests && node --experimental-vm-modules node_modules/jest/bin/jest.js --runInBand .test-dist/tests/validators.test.js",
-    "build:tests": "tsc -p tsconfig.tests.json",
-    "dev": "tsx watch src/server.ts",
+    "test": "npm run build:tests && node --env-file-if-exists=.env --experimental-vm-modules node_modules/jest/bin/jest.js --runInBand",
+    "test:unit": "npm run build:tests && node --env-file-if-exists=.env --experimental-vm-modules node_modules/jest/bin/jest.js --runInBand .test-dist/tests/validators.test.js",
+    "test:integration": "npm run build:tests && node --env-file-if-exists=.env --experimental-vm-modules node_modules/jest/bin/jest.js --runInBand .test-dist/tests/api.test.js",
+    "build:tests": "rm -rf .test-dist && tsc -p tsconfig.tests.json",
+    "dev": "tsx watch --env-file-if-exists=.env src/server.ts",
     "build": "tsc",
-    "start": "node dist/server.js",
+    "start": "node --env-file-if-exists=.env dist/server.js",
     "typecheck": "tsc --noEmit",
     "typecheck:tests": "tsc -p tsconfig.tests.json --noEmit",
-    "migrate": "tsx src/migrate.ts"
+    "migrate": "tsx --env-file-if-exists=.env src/migrate.ts"
   },
   "keywords": [],
   "author": "",

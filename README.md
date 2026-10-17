@@ -6,7 +6,20 @@ The stack is Node.js 24, TypeScript with NodeNext ESM, Express 5, PostgreSQL 16,
 
 ## Run locally
 
-You need Node.js 24, npm, and a running PostgreSQL 16 server. The default connection is `postgresql://recon:recon_dev@localhost:5432/finance_recon`. Create that role and database, or set `DATABASE_URL` to a PostgreSQL connection string you already have. The role needs permission to create tables in its schema.
+You need Node.js 24, npm, and a running PostgreSQL 16 server. There is no default connection. Copy the sample settings with `cp .env.example .env` and edit `DATABASE_URL` if needed (see Database setup below). `.env` is gitignored; `.env.example` is committed. The npm scripts load `.env` automatically, and the app stops with an error if `DATABASE_URL` is unset. The role needs permission to create tables in its schema.
+
+### Database setup
+
+Create the role and both databases once, as a PostgreSQL superuser (on Linux, usually the `postgres` OS user). The names and password below match `.env.example`:
+
+```bash
+sudo -u postgres psql \
+  -c "CREATE ROLE recon WITH LOGIN PASSWORD 'recon_dev'" \
+  -c "CREATE DATABASE finance_recon OWNER recon" \
+  -c "CREATE DATABASE finance_recon_test OWNER recon"
+```
+
+The development database holds your real data; the test database is only for `npm test`. If the role already exists, run just the two `CREATE DATABASE` commands. Check the setup with `psql postgresql://recon:recon_dev@localhost:5432/finance_recon_test -c 'select 1'`.
 
 ```bash
 npm ci
@@ -80,11 +93,11 @@ Settlements may arrive before their orders. These receipts remain stored and are
 npm test
 ```
 
-This command compiles the application and `.test.ts` files into `.test-dist/`, checks that it is connected to `finance_recon_test.public`, recreates the three tables there, and runs Jest on the compiled JavaScript. It removes the test tables afterward. Each integration test resets those tables and verifies the database name before doing so. Create a local `finance_recon_test` database owned by the `recon` role before running `npm test`; set `TEST_DATABASE_URL` if its connection details differ from the default `postgresql://recon:recon_dev@localhost:5432/finance_recon_test`. The runner refuses to touch the development database.
+This command compiles the application and `.test.ts` files into `.test-dist/` and runs Jest on the compiled JavaScript. The integration tests drop and recreate the three tables in the test database once per run, and reset them before each test. Tests use only `TEST_DATABASE_URL`, which has no default; it comes from `.env` (see `.env.example`). A `DATABASE_URL` from your shell is ignored by the tests. The tests trust `TEST_DATABASE_URL` completely and drop and truncate tables in whatever database it names, so it must be a dedicated test database, never one with data you want to keep. If the variable is unset or the database cannot be reached, the run stops with a message instead of falling back to another database.
 
-For the default local setup, run `createdb -O recon finance_recon_test` once as a PostgreSQL role with database-creation permission. The database remains in place between test runs; only its application tables are recreated.
+Create the test database as described under Database setup. The database remains in place between test runs; only its application tables are recreated at the start of each run.
 
-Use `npm run test:unit` to run the validator tests without PostgreSQL. `npm run build` still builds the application alone into `dist/` for `npm start`.
+Use `npm run test:unit` to run the validator tests without PostgreSQL, or `npm run test:integration` for only the database-backed tests. `npm run build` still builds the application alone into `dist/` for `npm start`.
 
 The [testing guide](TESTING_GUIDE.md) explains each part of the tests and the reasons behind their design. GitHub Actions runs the same `npm test` command on every push and pull request, using a PostgreSQL 16 service. The workflow is in [`.github/workflows/ci.yml`](.github/workflows/ci.yml).
 
