@@ -51,6 +51,7 @@ export const FinanceRepository = {
       await client.query("BEGIN");
 
       // Combine partial settlements so each order is processed exactly once.
+      // ORDER BY gives every concurrent run the same row-locking order, which prevents deadlocks.
       const { rows } = await client.query(`
         SELECT 
           o.order_ref,
@@ -62,6 +63,7 @@ export const FinanceRepository = {
           FROM settlements
           GROUP BY order_ref
         ) s ON o.order_ref = s.order_ref
+        ORDER BY o.order_ref
       `);
 
       let matchedCount = 0;
